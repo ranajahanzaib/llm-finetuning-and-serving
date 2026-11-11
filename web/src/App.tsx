@@ -151,7 +151,7 @@ export function App() {
     try {
       setRegression(await call(`/regressions/${id}`));
     } catch {
-      /* AfterTune may not have run. */
+      /* finetuning-regression-tester (AfterTune) may not have run. */
     }
   }
   const report = evaluation as Evaluation | null;
@@ -275,7 +275,7 @@ export function App() {
           <div className="step">
             <i>04</i>
             <span>Regression</span>
-            <small>AfterTune</small>
+            <small>Regression tester</small>
           </div>
           <b>→</b>
           <div className="step">
@@ -593,18 +593,18 @@ export function App() {
             <div className="section-head">
               <div>
                 <span className="eyebrow">03 / CAPABILITY RETENTION</span>
-                <h2>AfterTune analysis</h2>
+                <h2>finetuning-regression-tester analysis</h2>
               </div>
               <span
                 className={
-                  health?.aftertune &&
-                  (health.aftertune as { available?: boolean }).available
+                  (health?.finetuning_regression_tester || health?.aftertune) &&
+                  ((health.finetuning_regression_tester || health.aftertune) as { available?: boolean }).available
                     ? "pill"
                     : "pill muted"
                 }
               >
-                {health?.aftertune &&
-                (health.aftertune as { available?: boolean }).available
+                {(health?.finetuning_regression_tester || health?.aftertune) &&
+                ((health.finetuning_regression_tester || health.aftertune) as { available?: boolean }).available
                   ? "AVAILABLE"
                   : "NOT CONFIGURED"}
               </span>
@@ -612,9 +612,9 @@ export function App() {
             {capabilities.length ? (
               <>
                 <p className="subtle">
-                  Paired transitions from the selected AfterTune report. These
-                  are observed suite outcomes, not proof of permanent skill
-                  loss.
+                  Paired transitions from the selected finetuning-regression-tester
+                  report. These are observed suite outcomes, not proof of
+                  permanent skill loss.
                 </p>
                 <div className="chart">
                   <ResponsiveContainer width="100%" height={230}>
@@ -651,8 +651,8 @@ export function App() {
             ) : (
               <div className="empty">
                 {selectedRun
-                  ? "No imported AfterTune report for this run. Run the documented integration command to add paired capability evidence."
-                  : "Choose an experiment with an imported AfterTune report. Task metrics and general capability retention remain separate."}
+                  ? "No imported finetuning-regression-tester report for this run. Run the documented integration command to add paired capability evidence."
+                  : "Choose an experiment with an imported regression tester report. Task metrics and general capability retention remain separate."}
               </div>
             )}
           </section>
@@ -675,7 +675,7 @@ export function App() {
               appear only after real evaluation artifacts exist.
             </p>
             <p>
-              <b>Regression</b>AfterTune owns paired capability grading and its
+              <b>Regression</b><a href="https://github.com/ranajahanzaib/finetuning-regression-tester" target="_blank" rel="noreferrer">finetuning-regression-tester</a> (formerly AfterTune) owns paired capability grading and its
               native comparison report. LLM Fine-tuning and Serving records the
               command, version, source artifact, and associated run.
             </p>

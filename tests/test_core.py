@@ -6,7 +6,10 @@ from llm_finetuning_and_serving.datasets import inspect
 from llm_finetuning_and_serving.evaluation import evaluate, metrics
 from llm_finetuning_and_serving.experiments import get_run, list_runs
 from llm_finetuning_and_serving.inference import InvalidModelOutput, ModelManager, apply_policy
-from llm_finetuning_and_serving.integrations.aftertune import AfterTuneStatus, load_report
+from llm_finetuning_and_serving.integrations.finetuning_regression_tester import (
+    RegressionTesterStatus,
+    load_report,
+)
 from llm_finetuning_and_serving.labels import BANKING77_LABELS
 from llm_finetuning_and_serving.schemas import PredictionResponse, Ticket
 
@@ -192,21 +195,24 @@ def test_aftertune_report_rejects_demo_or_wrong_schema(tmp_path):
 def test_aftertune_timeout_keeps_partial_output(monkeypatch):
     import subprocess
 
-    import llm_finetuning_and_serving.integrations.aftertune as integration
+    import llm_finetuning_and_serving.integrations.finetuning_regression_tester as integration
 
     monkeypatch.setattr(
         integration,
         "detect",
-        lambda _executable=None: AfterTuneStatus(True, "/usr/bin/aftertune", "1.0", "ok"),
+        lambda _executable=None: RegressionTesterStatus(
+            True, "/usr/bin/finetuning-regression-tester", "1.0", "ok"
+        ),
     )
 
     def timeout(*_args, **_kwargs):
         raise subprocess.TimeoutExpired(
-            ["aftertune", "baseline"], 1, output=b"partial", stderr=b"work"
+            ["finetuning-regression-tester", "baseline"], 1, output=b"partial", stderr=b"work"
         )
 
     monkeypatch.setattr(integration.subprocess, "run", timeout)
     result = integration.run(["baseline"], timeout=1)
     assert result["timed_out"] is True
+    assert result["returncode"] == -1
     assert result["stdout"] == "partial"
     assert "Timed out" in result["stderr"]

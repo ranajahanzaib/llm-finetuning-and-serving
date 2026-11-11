@@ -17,7 +17,11 @@ describe("LLM Fine-tuning and Serving workbench", () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.endsWith("/health"))
-        return reply({ status: "ok", aftertune: { available: false } });
+        return reply({
+          status: "ok",
+          finetuning_regression_tester: { available: false },
+          aftertune: { available: false },
+        });
       if (url.endsWith("/models"))
         return reply({
           base: "local-test-model",

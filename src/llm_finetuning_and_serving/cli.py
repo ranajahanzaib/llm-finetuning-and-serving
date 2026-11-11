@@ -18,18 +18,26 @@ from llm_finetuning_and_serving.datasets import inspect, prepare
 from llm_finetuning_and_serving.evaluation import evaluate
 from llm_finetuning_and_serving.experiments import create_run, get_run, list_runs
 from llm_finetuning_and_serving.inference import DEFAULT_MODEL, ModelManager
-from llm_finetuning_and_serving.integrations.aftertune import detect, load_report
-from llm_finetuning_and_serving.integrations.aftertune import run as aftertune_run
+from llm_finetuning_and_serving.integrations.finetuning_regression_tester import (
+    detect,
+    load_report,
+)
+from llm_finetuning_and_serving.integrations.finetuning_regression_tester import (
+    run as tester_run,
+)
 from llm_finetuning_and_serving.labels import BANKING77_LABELS
 
 app = typer.Typer(
     help="Train, evaluate, and serve specialized language models locally.", no_args_is_help=True
 )
 data_app = typer.Typer(help="BANKING77 dataset operations", no_args_is_help=True)
-at_app = typer.Typer(help="AfterTune integration", no_args_is_help=True)
+regression_app = typer.Typer(
+    help="finetuning-regression-tester (AfterTune) integration", no_args_is_help=True
+)
 exp_app = typer.Typer(help="Local experiment registry", no_args_is_help=True)
 app.add_typer(data_app, name="data")
-app.add_typer(at_app, name="aftertune")
+app.add_typer(regression_app, name="regression-tester")
+app.add_typer(regression_app, name="aftertune")
 app.add_typer(exp_app, name="experiments")
 
 
@@ -472,18 +480,20 @@ def compare_cmd(
     typer.echo(json.dumps(summary, indent=2))
 
 
-@at_app.command("check")
-def aftertune_check() -> None:
+@regression_app.command("check")
+def tester_check() -> None:
     status = detect()
     typer.echo(json.dumps(status.__dict__, indent=2))
     if not status.available:
         raise typer.Exit(1)
 
 
-@at_app.command("run")
-def aftertune_eval(
+@regression_app.command("run")
+def tester_eval(
     run_id: str,
-    cases: Path = typer.Option(..., help="AfterTune compatible JSONL evaluation suite"),
+    cases: Path = typer.Option(
+        ..., help="finetuning-regression-tester compatible JSONL evaluation suite"
+    ),
     adapter: Path = typer.Option(...),
     config: Path = typer.Option(...),
     output: Path = typer.Option(...),
@@ -493,13 +503,15 @@ def aftertune_eval(
     if not record:
         raise typer.BadParameter("Unknown LLM Fine-tuning and Serving experiment run_id")
     if record.get("status") != "completed":
-        raise typer.BadParameter("AfterTune can only evaluate a completed LLM Fine-tuning and Serving run")
+        raise typer.BadParameter(
+            "finetuning-regression-tester can only evaluate a completed LLM Fine-tuning and Serving run"
+        )
     if record.get("adapter_path") and Path(record["adapter_path"]).resolve() != adapter.resolve():
         raise typer.BadParameter("Adapter path does not match the selected LLM Fine-tuning and Serving experiment")
     if not adapter.is_dir() or not (adapter / "adapters.safetensors").is_file():
         raise typer.BadParameter("Adapter is missing its MLX-LM adapters.safetensors artifact")
     if not cases.is_file() or not config.is_file():
-        raise typer.BadParameter("AfterTune cases and config must both exist")
+        raise typer.BadParameter("finetuning-regression-tester cases and config must both exist")
     import yaml
 
     config_data = yaml.safe_load(config.read_text()) or {}
@@ -508,7 +520,9 @@ def aftertune_eval(
         configured_model.get("id") if isinstance(configured_model, dict) else configured_model
     )
     if configured_model != record.get("base_model"):
-        raise typer.BadParameter("AfterTune config model must match the LLM Fine-tuning and Serving run's base model")
+        raise typer.BadParameter(
+            "finetuning-regression-tester config model must match the LLM Fine-tuning and Serving run's base model"
+        )
     configured_revision = (
         config_data.get("model", {}).get("revision")
         if isinstance(config_data.get("model"), dict)
@@ -516,7 +530,7 @@ def aftertune_eval(
     )
     if record.get("model_revision") and configured_revision != record["model_revision"]:
         raise typer.BadParameter(
-            "AfterTune config must pin the same model revision as the LLM Fine-tuning and Serving run"
+            "finetuning-regression-tester config must pin the same model revision as the LLM Fine-tuning and Serving run"
         )
     output.mkdir(parents=True, exist_ok=True)
     commands = [
@@ -577,15 +591,18 @@ def aftertune_eval(
         "commands": [],
     }
     for stage, args in commands:
-        result = aftertune_run(args, timeout)
+        result = tester_run(args, timeout)
         provenance["commands"].append(result)
         (output / "invocation.json").write_text(json.dumps(provenance, indent=2) + "\n")
         if result["returncode"]:
-            raise typer.BadParameter(f"AfterTune {stage} failed: {result['stderr'][-2000:]}")
+            raise typer.BadParameter(
+                f"finetuning-regression-tester {stage} failed: {result['stderr'][-2000:]}"
+            )
     imported = load_report(output / "comparison.json", run_id)
     imported["invocation"] = provenance
     target = output / "llm-finetuning-and-serving-aftertune.json"
     target.write_text(json.dumps(imported, indent=2) + "\n")
+    record.setdefault("artifacts", {})["finetuning_regression_tester"] = str(target.resolve())
     record.setdefault("artifacts", {})["aftertune"] = str(target.resolve())
     (Path("runs") / run_id / "manifest.json").write_text(json.dumps(record, indent=2) + "\n")
     typer.echo(

@@ -8,7 +8,7 @@ LLM Fine-tuning and Serving is a local machine-learning workbench for adapting a
 flowchart LR
   A[BANKING77 + optional reviewed ticket data] --> B[MLX-LM LoRA]
   B --> C[Base / adapted task evaluation]
-  C --> D[AfterTune paired capability analysis]
+  C --> D[finetuning-regression-tester paired capability analysis]
   C --> E[Experiment artifacts]
   D --> E
   E --> F[FastAPI] --> G[React workbench]
@@ -52,21 +52,21 @@ uv run llm-finetuning-and-serving eval --input datasets/unsupported_inputs.jsonl
 
 Set `LLM_FINETUNING_AND_SERVING_ADAPTER` to a trained adapter directory for adapted inference. Training invokes MLX-LM's `mlx_lm.lora` command and preserves its logs and run metadata. The integration targets the version range declared in `pyproject.toml`.
 
-## AfterTune integration
+## finetuning-regression-tester integration
 
-LLM Fine-tuning and Serving uses AfterTune's CLI and native comparison JSON. It does not reproduce AfterTune's capability graders. `llm-finetuning-and-serving aftertune check` reports availability. For an experiment with a compatible adapter, supply an AfterTune-format held-out suite and config whose model points to the same base checkpoint:
+LLM Fine-tuning and Serving integrates with [finetuning-regression-tester](https://github.com/ranajahanzaib/finetuning-regression-tester) (formerly AfterTune) using its CLI and native comparison JSON. It does not reproduce capability graders. `llm-finetuning-and-serving regression-tester check` (or alias `aftertune check`) reports availability. For an experiment with a compatible adapter, supply a compatible held-out suite and config whose model points to the same base checkpoint:
 
 ```bash
-uv run llm-finetuning-and-serving aftertune run RUN_ID \
-  --cases path/to/aftertune-retention-cases.jsonl \
+uv run llm-finetuning-and-serving regression-tester run RUN_ID \
+  --cases path/to/retention-cases.jsonl \
   --adapter artifacts/adapters/RUN_ID \
-  --config path/to/compatible-aftertune.yaml \
-  --output runs/RUN_ID/aftertune
+  --config path/to/compatible-config.yaml \
+  --output runs/RUN_ID/regression-tester
 ```
 
-The adapter verifies run association, executes baseline → adapted evaluation → compare → report with a timeout per command, validates AfterTune schema v1, and preserves the original comparison report plus invocation provenance. AfterTune failure or absence is visible and does not block task inference. AfterTune's existing product-task example is not represented as a banking ticket benchmark.
+The adapter verifies run association, executes baseline → adapted evaluation → compare → report with a timeout per command, validates comparison schema v1, and preserves the original comparison report plus invocation provenance. Tool failure or absence is visible and does not block task inference. finetuning-regression-tester's existing product-task example is not represented as a banking ticket benchmark.
 
-See [integration details](docs/aftertune-integration.md).
+See [integration details](docs/finetuning-regression-tester-integration.md).
 
 ## Serve and use the application
 
@@ -75,7 +75,7 @@ uv run llm-finetuning-and-serving serve                 # localhost:8000
 cd web && pnpm install && pnpm run dev  # localhost:5173
 ```
 
-FastAPI docs: `http://127.0.0.1:8000/docs`. API routes include health, model status, prediction, sequential comparison, experiment metadata, evaluation artifacts/examples, AfterTune reports, and dataset summary. `LLM_FINETUNING_AND_SERVING_MODEL`, `LLM_FINETUNING_AND_SERVING_ADAPTER`, `LLM_FINETUNING_AND_SERVING_DATA`, and `LLM_FINETUNING_AND_SERVING_CORS_ORIGINS` configure the local service. It binds to loopback by default. Public exposure needs authentication, rate limiting, and suitable customer-data protections. Request text is not written to ordinary application logs.
+FastAPI docs: `http://127.0.0.1:8000/docs`. API routes include health, model status, prediction, sequential comparison, experiment metadata, evaluation artifacts/examples, regression reports, and dataset summary. `LLM_FINETUNING_AND_SERVING_MODEL`, `LLM_FINETUNING_AND_SERVING_ADAPTER`, `LLM_FINETUNING_AND_SERVING_DATA`, and `LLM_FINETUNING_AND_SERVING_CORS_ORIGINS` configure the local service. It binds to loopback by default. Public exposure needs authentication, rate limiting, and suitable customer-data protections. Request text is not written to ordinary application logs.
 
 The workbench shows real API output and reads recorded artifacts. It never supplies fixture metrics. The six playground inputs are examples only, not an evaluation set. Suggested workflow identifiers are advisory; no financial operation is connected.
 
@@ -95,7 +95,7 @@ Tests use controlled predictions and local fixtures; they do not demonstrate rea
 - `src/llm_finetuning_and_serving/datasets.py`: dataset download, stratified split, hashes, and chat records.
 - `inference.py`, `schemas.py`: lazy MLX model lifecycle, parsing, and conservative ticket policy.
 - `evaluation.py`: real per-example inference and classification metrics.
-- `integrations/aftertune.py`: isolated CLI invocation and native report import.
+- `integrations/finetuning_regression_tester.py`: isolated CLI invocation and native report import.
 - `experiments.py`, `api.py`, `cli.py`: local JSON registry, FastAPI, and CLI.
 - `web/`: React/TypeScript research console.
 
@@ -107,4 +107,4 @@ See the [contribution guide](CONTRIBUTING.md), [Code of Conduct](CODE_OF_CONDUCT
 
 ## Attribution and license
 
-LLM Fine-tuning and Serving source code is MIT licensed. BANKING77 is attributed to PolyAI via Hugging Face and distributed under CC-BY-4.0; cite the [dataset card](https://huggingface.co/datasets/PolyAI/banking77) and its [2020 paper](https://arxiv.org/abs/2003.04807). Qwen model weights follow the model card's Apache-2.0 license and are not bundled. AfterTune remains a separate MIT-licensed project; integration is via its CLI and report format, with source provenance retained.
+LLM Fine-tuning and Serving source code is MIT licensed. BANKING77 is attributed to PolyAI via Hugging Face and distributed under CC-BY-4.0; cite the [dataset card](https://huggingface.co/datasets/PolyAI/banking77) and its [2020 paper](https://arxiv.org/abs/2003.04807). Qwen model weights follow the model card's Apache-2.0 license and are not bundled. [finetuning-regression-tester](https://github.com/ranajahanzaib/finetuning-regression-tester) (formerly AfterTune) remains a separate MIT-licensed project; integration is via its CLI and report format, with source provenance retained.

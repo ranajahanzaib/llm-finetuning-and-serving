@@ -11,7 +11,9 @@ from llm_finetuning_and_serving import __version__
 from llm_finetuning_and_serving.datasets import inspect
 from llm_finetuning_and_serving.experiments import get_run, list_runs
 from llm_finetuning_and_serving.inference import ModelManager
-from llm_finetuning_and_serving.integrations.aftertune import status_dict
+from llm_finetuning_and_serving.integrations.finetuning_regression_tester import (
+    status_dict as regression_tester_status_dict,
+)
 from llm_finetuning_and_serving.schemas import PredictionRequest, PredictionResponse
 
 app = FastAPI(
@@ -36,11 +38,13 @@ manager = ModelManager()
 
 @app.get("/api/v1/health")
 def health() -> dict:
+    tester_status = regression_tester_status_dict()
     return {
         "status": "ok",
         "version": __version__,
         "mlx_loaded": bool(manager._loaded),
-        "aftertune": status_dict(),
+        "finetuning_regression_tester": tester_status,
+        "aftertune": tester_status,
     }
 
 
@@ -130,9 +134,13 @@ def regressions(run_id: str) -> dict:
     record = get_run(run_id)
     if record is None:
         raise HTTPException(404, "Experiment not found")
-    artifact = record.get("artifacts", {}).get("aftertune")
+    artifact = record.get("artifacts", {}).get("finetuning_regression_tester") or record.get(
+        "artifacts", {}
+    ).get("aftertune")
     if not artifact or not Path(artifact).is_file():
-        raise HTTPException(404, "No AfterTune report imported for this experiment")
+        raise HTTPException(
+            404, "No finetuning-regression-tester report imported for this experiment"
+        )
     return json.loads(Path(artifact).read_text())
 
 
