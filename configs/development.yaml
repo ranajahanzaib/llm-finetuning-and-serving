@@ -1,0 +1,14 @@
+# Starting values for a short pipeline check; not evidence of convergence.
+model: mlx-community/Qwen2.5-1.5B-Instruct-4bit
+# Optionally pin an immutable Hugging Face commit, also set LLM_FINETUNING_AND_SERVING_MODEL_REVISION for serving.
+# model_revision: <commit-sha>
+training:
+  preset: development
+  iters: 20
+  batch_size: 2
+  learning_rate: 0.00001
+  max_seq_length: 512
+  seed: 42
+  num_layers: 4
+  rank: 8
+  scale: 20

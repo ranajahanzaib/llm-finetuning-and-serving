@@ -1,0 +1,5 @@
+seed: 42
+max_tokens: 256
+temperature: 0
+prompt_template: banking-intent-v1
+primary_split: official-test

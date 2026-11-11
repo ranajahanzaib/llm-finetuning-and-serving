@@ -1,0 +1,11 @@
+# Advisory routing IDs only. These mappings never perform financial operations.
+suggested_actions:
+  card_arrival: check_card_delivery_status
+  cash_withdrawal_not_recognised: review_cash_withdrawal_issue
+  compromised_card: review_suspected_compromise
+  lost_or_stolen_card: review_lost_or_stolen_card
+  failed_transfer: review_failed_transfer
+  transfer_not_received_by_recipient: review_transfer_trace
+  transaction_charged_twice: review_duplicate_transaction
+  card_payment_not_recognised: review_unrecognized_card_payment
+  direct_debit_payment_not_recognised: review_unrecognized_direct_debit
