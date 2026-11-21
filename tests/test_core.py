@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from llm_finetuning_and_serving.datasets import inspect
+from llm_finetuning_and_serving.datasets import inspect, prepare
 from llm_finetuning_and_serving.evaluation import evaluate, metrics
 from llm_finetuning_and_serving.experiments import get_run, list_runs
 from llm_finetuning_and_serving.inference import InvalidModelOutput, ModelManager, apply_policy
@@ -158,6 +158,82 @@ def test_dataset_inspection_is_offline(tmp_path):
     (tmp_path / "train.jsonl").write_text(json.dumps({"text": "hello", "intent": "x"}) + "\n")
     result = inspect(tmp_path)
     assert result["splits"]["train.jsonl"]["examples"] == 1
+
+
+def test_dataset_prepare_loads_pinned_official_parquet_splits(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from llm_finetuning_and_serving.labels import BANKING77_REVISION
+
+    train_rows = [
+        {"text": "arrival one", "label": 0},
+        {"text": "arrival two", "label": 0},
+        {"text": "arrival three", "label": 0},
+        {"text": "unknown one", "label": 1},
+        {"text": "unknown two", "label": 1},
+    ]
+    test_rows = [{"text": "official test", "label": 1}]
+
+    class Split(list):
+        features = {
+            "label": SimpleNamespace(names=["card_arrival", "unknown"]),
+        }
+
+    dataset = SimpleNamespace(
+        train=Split(train_rows),
+        test=Split(test_rows),
+        _fingerprint="fixture-fingerprint",
+    )
+
+    class DatasetDict(dict):
+        _fingerprint = "fixture-fingerprint"
+
+    source_files = {
+        "train": tmp_path / "source-train.parquet",
+        "test": tmp_path / "source-test.parquet",
+    }
+    for split, path in source_files.items():
+        path.write_bytes(f"fixture {split}".encode())
+
+    download_calls = []
+
+    def fake_download(*, repo_id, filename, repo_type, revision):
+        download_calls.append((repo_id, filename, repo_type, revision))
+        split = "train" if "/train-" in filename else "test"
+        return source_files[split]
+
+    def fake_load_dataset(reader, *, data_files):
+        assert reader == "parquet"
+        assert data_files == {
+            "train": source_files["train"],
+            "test": source_files["test"],
+        }
+        return DatasetDict(train=dataset.train, test=dataset.test)
+
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", fake_download)
+    monkeypatch.setattr("datasets.load_dataset", fake_load_dataset)
+    output = tmp_path / "prepared"
+
+    manifest = prepare(output, seed=42, validation_fraction=0.25)
+
+    assert [call[1] for call in download_calls] == [
+        "data/train-00000-of-00001.parquet",
+        "data/test-00000-of-00001.parquet",
+    ]
+    assert all(call[0] == "PolyAI/banking77" for call in download_calls)
+    assert all(call[2] == "dataset" and call[3] == BANKING77_REVISION for call in download_calls)
+    assert manifest["dataset_fingerprint"] == "fixture-fingerprint"
+    assert manifest["source_files_sha256"]["train"]
+    assert manifest["source_files_sha256"]["test"]
+    assert manifest["splits"]["train.jsonl"]["examples"] == 3
+    assert manifest["splits"]["valid.jsonl"]["examples"] == 2
+    assert manifest["splits"]["test.jsonl"]["examples"] == 1
+    assert json.loads((output / "test.jsonl").read_text().splitlines()[0]) == {
+        "text": "official test",
+        "intent": "unknown",
+    }
+    assert (output / "mlx" / "train.jsonl").is_file()
+    assert (output / "mlx" / "valid.jsonl").is_file()
 
 
 def test_experiment_registry_rejects_path_traversal(tmp_path):

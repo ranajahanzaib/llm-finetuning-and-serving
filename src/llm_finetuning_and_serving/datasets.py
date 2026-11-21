@@ -25,10 +25,37 @@ def prepare(output: Path, seed: int = 42, validation_fraction: float = 0.1) -> d
     if not 0 < validation_fraction <= 0.5:
         raise ValueError("validation_fraction must be greater than 0 and no more than 0.5")
     try:
+        from huggingface_hub import hf_hub_download
+
         from datasets import load_dataset
     except ImportError as exc:
         raise RuntimeError("Install LLM Fine-tuning and Serving with the [data] extra to download BANKING77.") from exc
-    dataset = load_dataset(DATASET_ID, revision=BANKING77_REVISION)
+
+    # The pinned upstream revision contains both the official Parquet splits and a
+    # legacy loading script. Recent `datasets` releases no longer execute scripts,
+    # so fetch the immutable split files directly and load them with the built-in reader.
+    data_files = {
+        split: hf_hub_download(
+            repo_id=DATASET_ID,
+            filename=f"data/{split}-00000-of-00001.parquet",
+            repo_type="dataset",
+            revision=BANKING77_REVISION,
+        )
+        for split in ("train", "test")
+    }
+    dataset = load_dataset("parquet", data_files=data_files)
+    source_hashes = {split: sha256(Path(path)) for split, path in data_files.items()}
+    dataset_fingerprint = getattr(dataset, "_fingerprint", None)
+    if not dataset_fingerprint:
+        fingerprint_payload = json.dumps(
+            {
+                "dataset_id": DATASET_ID,
+                "dataset_revision": BANKING77_REVISION,
+                "source_files_sha256": source_hashes,
+            },
+            sort_keys=True,
+        )
+        dataset_fingerprint = hashlib.sha256(fingerprint_payload.encode()).hexdigest()
     train, official_test = dataset["train"], dataset["test"]
     label_names = train.features["label"].names
     groups: dict[int, list[dict]] = {}
@@ -75,7 +102,8 @@ def prepare(output: Path, seed: int = 42, validation_fraction: float = 0.1) -> d
     manifest = {
         "dataset_id": DATASET_ID,
         "dataset_revision": BANKING77_REVISION,
-        "dataset_fingerprint": getattr(dataset, "_fingerprint", None),
+        "dataset_fingerprint": dataset_fingerprint,
+        "source_files_sha256": source_hashes,
         "seed": seed,
         "validation_fraction": validation_fraction,
         "labels": label_names,
