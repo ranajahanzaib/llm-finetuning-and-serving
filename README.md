@@ -2,7 +2,11 @@
 
 LLM Fine-tuning and Serving is a local machine-learning workbench for adapting and evaluating a language model on banking-support intent classification. It uses MLX-LM and applies a conservative policy layer to produce advisory ticket defaults.
 
-**Current status:** the source includes the dataset, training, evaluation, API, and web workflows. No model training or real-model evaluation has been run for this release, so no adapter or performance results are included. Real inference and training require macOS on Apple Silicon.
+**Current status:** the source includes the dataset, training, evaluation, API, and web workflows. A real base-checkpoint smoke run on the repository's 18 authored unsupported-input cases is recorded below; no adapter training or BANKING77 validation/test evaluation has been run. The smoke fixture is too small and authored to support performance claims. Real inference and training require macOS on Apple Silicon.
+
+![Adaptation console with prepared BANKING77 splits and a live base-model response](docs/screenshots/overview.png)
+
+_Live local session. The unadapted base model returned an out-of-registry label; the workbench shows its validation fallback to `unknown` and human review._
 
 ```mermaid
 flowchart LR
@@ -50,6 +54,8 @@ uv run llm-finetuning-and-serving eval --dataset data/banking77 --split test --m
 uv run llm-finetuning-and-serving eval --input datasets/unsupported_inputs.jsonl --model base --output runs/unsupported-base.json
 ```
 
+On macOS with Apple Silicon and the configured base checkpoint available, the 18-case smoke command completed with 18 valid JSON/schema responses and no inference errors. Seventeen responses contained an intent outside the BANKING77 label registry and were mapped to `unknown` for review. The resulting 15/18 accuracy is dominated by the fixture's 15 expected `unknown` cases; all three in-domain cases were also mapped to `unknown`. This is a guardrail execution record, not a model quality result.
+
 Set `LLM_FINETUNING_AND_SERVING_ADAPTER` to a trained adapter directory for adapted inference. Training invokes MLX-LM's `mlx_lm.lora` command and preserves its logs and run metadata. The integration targets the version range declared in `pyproject.toml`.
 
 ## finetuning-regression-tester integration
@@ -78,6 +84,44 @@ cd web && pnpm install && pnpm run dev  # localhost:5173
 FastAPI docs: `http://127.0.0.1:8000/docs`. API routes include health, model status, prediction, sequential comparison, experiment metadata, evaluation artifacts/examples, regression reports, and dataset summary. `LLM_FINETUNING_AND_SERVING_MODEL`, `LLM_FINETUNING_AND_SERVING_ADAPTER`, `LLM_FINETUNING_AND_SERVING_DATA`, and `LLM_FINETUNING_AND_SERVING_CORS_ORIGINS` configure the local service. It binds to loopback by default. Public exposure needs authentication, rate limiting, and suitable customer-data protections. Request text is not written to ordinary application logs.
 
 The workbench shows real API output and reads recorded artifacts. It never supplies fixture metrics. The six playground inputs are examples only, not an evaluation set. Suggested workflow identifiers are advisory; no financial operation is connected.
+
+To inspect the service without loading a model, start it and query its model status:
+
+```bash
+uv run llm-finetuning-and-serving serve
+curl http://127.0.0.1:8000/api/v1/models
+```
+
+For example, before an adapter is configured, the API reports that state explicitly:
+
+```json
+{
+  "base": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
+  "adapter": null,
+  "adapter_configured": false,
+  "adapter_status": {
+    "state": "unavailable",
+    "compatible": null,
+    "detail": "No adapter configured"
+  }
+}
+```
+
+Prediction requests require a locally available MLX model and, for adapted inference, a compatible adapter. The response above is model status, not an inference result.
+
+With the base checkpoint and no adapter, the live playground was also exercised using its replacement-card example. The model emitted `{"intent":"BANKING77"}`, which is outside the intent registry; validation mapped it to `unknown` and required human review:
+
+```json
+{
+  "intent": "unknown",
+  "priority": "unspecified",
+  "entities": {},
+  "suggested_action": null,
+  "requires_human_review": true
+}
+```
+
+This demonstrates the validation fallback, not a correct prediction for that ticket. The smoke run below likewise shows substantial unsupported-label behavior from the unadapted checkpoint.
 
 ## Checks
 
