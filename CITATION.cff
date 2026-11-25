@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use LLM Fine-tuning and Serving in research or teaching, please cite this software."
+title: "LLM Fine-tuning and Serving"
+version: 0.1.0
+authors:
+  - family-names: Rana
+    given-names: Jahanzaib
+    orcid: "https://orcid.org/0009-0006-7085-0440"
+repository-code: "https://github.com/ranajahanzaib/llm-finetuning-and-serving"
+license: MIT
+abstract: "LLM Fine-tuning and Serving is a local machine-learning workbench for adapting and evaluating a language model on banking-support intent classification. It uses MLX-LM and applies a conservative policy layer to produce advisory ticket defaults."
+keywords:
+  - machine-learning
+  - large-language-models
+  - mlx
+  - fine-tuning
+  - intent-classification
+  - model-serving
